@@ -1,0 +1,76 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(RMySQL)
+library(ggplot2)
+library(dplyr)
+library(maps)
+```
+## Load Reject Data from MySQL
+```{r include=FALSE}
+con <- dbConnect(MySQL(), 
+user='root', dbname='landingclub', host='localhost')
+dbListTables(con)
+sql <- "select * from rejectstat"
+res <- dbGetQuery(con, sql)
+reject <- data.frame(res)
+```
+## Exploratory Analysis
+```{r}
+summary(reject)
+```
+## Clean Loan Title Column
+
+```{r}
+reject<-reject%>%
+mutate(Loan_Title= gsub('Debt consolidation','debt_consolidation',Loan_Title))%>%
+mutate(Loan_Title= gsub('Home improvement','home_improvement',Loan_Title))%>%
+mutate(Loan_Title= gsub('Moving and relocation','moving',Loan_Title))%>%
+mutate(Loan_Title= gsub('Other','other',Loan_Title))%>%
+mutate(Loan_Title= gsub('Vacation','vacation',Loan_Title))%>%
+mutate(Loan_Title= gsub('Medical expenses','medical',Loan_Title))%>%
+mutate(Loan_Title= gsub('Car financing','car',Loan_Title))%>%
+mutate(Loan_Title= gsub('Business Loan','Business',Loan_Title))%>%
+mutate(Loan_Title= gsub('Credit card refinancing','credit_card',Loan_Title))
+
+p<-ggplot(reject, aes(x=Loan_Title )) + geom_bar()
+p+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+As we can see the top reject loan type is debt consolidation which is understandable, car is the 5th most rejected loan type but it's not that much in terms of total population 
+
+
+## Reject Count by Employment Length
+```{r}
+p<-ggplot(reject, aes(x=Employment_Length )) + geom_bar()
+p+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+According to the histgram, people with less than 1 year's work experience are most likely to be rejected, in my case, I only worked for two years, and the number of rejection compare to total number of rejection is very small.
+
+## Frequency Map by Reject Count
+```{r}
+heat_map<-reject%>%
+group_by(State) %>%
+summarise(count=n())
+
+states <- map_data("state")
+s<-data.frame(tolower(state.name) ,state.abb)
+names(s)<-c('full','State')
+heat_map<-merge(x = heat_map, y = s, by = "State", all.x = TRUE)
+names(heat_map)<-c('abb','count','region')
+sim_data_geo <- merge(states, heat_map, by="region",all.x = TRUE)
+qplot(long, lat, data=sim_data_geo, geom="polygon", fill=count, group=group)
+```
+
+It's obervious that west coast has much more reject case than other place, and I am going to buy a car in california,
+so there may be some risk for me.
+
+
