@@ -1,0 +1,208 @@
+---
+title: "Final"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+suppressWarnings(require(dplyr))
+suppressWarnings(require(ggplot2))
+suppressWarnings(require(moments))
+suppressWarnings(require(psych))
+suppressWarnings(require(MASS))
+```
+
+## Pick X, Y varible
+```{r}
+url <- "https://raw.githubusercontent.com/andrewlulyj/Data-605/master/train.csv"
+data = read.csv(url, header = TRUE)
+summary(data$TotalBsmtSF)
+skewness(data$TotalBsmtSF)
+ggplot(data = data, aes(x = TotalBsmtSF) )+ geom_density(alpha = .2, fill = "003333")
+```
+
+According to the plot and skewness result, TotalBsmtSF is a right skew variable. So it will be x and since the is a house price research, I will pick SalePrice as y
+
+## Calaculate Probablity 
+
+Calculate as a minimum the below probabilities a through c. Assume the small letter "x" is
+estimated as the 1st quartile of the X variable, and the small letter "y" is estimated as the 1st quartile of
+the Y variable. Interpret the meaning of all probabilities. In addition, make a table of counts as shown
+below.
+
+## a P(X>x|Y>y)
+```{r}
+x_Q1 <- quantile(data$TotalBsmtSF, 0.25)
+y_Q1 <- quantile(data$SalePrice, 0.25)
+numerator <- nrow(filter(data, SalePrice > y_Q1 & TotalBsmtSF > x_Q1)) /nrow(data)
+denominator <- nrow(filter(data, SalePrice > y_Q1 ))/nrow(data)
+p1<-numerator/denominator
+p1
+```
+
+## b P(X>x,Y>y)
+```{r}
+p2<-nrow(filter(data, SalePrice > y_Q1 & TotalBsmtSF > x_Q1)) /nrow(data)
+p2
+```
+
+## c. P(X<x | Y>y)
+```{r}
+numerator <- nrow(filter(data, SalePrice > y_Q1 & TotalBsmtSF < x_Q1)) /nrow(data)
+denominator <- nrow(filter(data, SalePrice > y_Q1 ))/nrow(data)
+p3<-numerator/denominator
+p3
+```
+```{r}
+a <- nrow(filter(data, SalePrice <= y_Q1 & TotalBsmtSF <= x_Q1))
+b<- nrow(filter(data, SalePrice > y_Q1 & TotalBsmtSF <= x_Q1))
+c <- nrow(filter(data, SalePrice <= y_Q1 & TotalBsmtSF > x_Q1))
+d<- nrow(filter(data, SalePrice > y_Q1 & TotalBsmtSF > x_Q1))
+
+table <- matrix(c(a,b,a+b,c,d,c + d ,a+c,b+d,a+b+c+d),ncol=3, nrow=3,byrow=TRUE)
+colnames(table) <- c("<=1d quartile",">1d quartile","Total")
+rownames(table) <- c('<=1d quartile', '>1d quartile','Total')
+table.table <- as.table(table)
+table.table
+```
+
+
+## Independence
+
+Does splitting the training data in this fashion make them independent? Let A be the new variable
+counting those observations above the 1st quartile for X, and let B be the new variable counting those
+observations above the 1st quartile for Y. Does P(AB)=P(A)P(B)? Check mathematically, and then
+evaluate by running a Chi Square test for association.
+
+```{r}
+B<- nrow(filter(data, SalePrice > y_Q1))
+A<- nrow(filter(data, TotalBsmtSF > x_Q1))
+PA <- A/nrow(data)
+PB <-B/nrow(data)
+PAB <-nrow(filter(data, SalePrice > y_Q1 & TotalBsmtSF > x_Q1))/nrow(data)
+PAB
+PA*PB
+test <- matrix(c(176, 186, 186, 909), 2, 2, byrow=T) 
+
+chisq.test(test, correct=TRUE) 
+```
+P(A|B)!=P(A)P(B)P(A|B)!=P(A)P(B) so X and Y are not independent.
+Based on chi square test, P is less than 0.05, so reject null hypothesis that x and y are independent 
+
+
+## Descriptive and Inferential Statistics. 
+
+Provide univariate descriptive statistics and appropriate plots for
+the training data set. Provide a scatterplot of X and Y. Derive a correlation matrix for any THREE
+quantitative variables in the dataset. Test the hypotheses that the correlations between each pairwise
+set of variables is 0 and provide a 92% confidence interval. Discuss the meaning of your analysis. Would
+you be worried about familywise error? Why or why not?
+
+```{r}
+plot(data$SalePrice~ data$TotalBsmtSF)
+cor<-cor(data[, which(names(data) %in% c("TotalBsmtSF", "SalePrice","LotArea"))])
+cor
+t1<-cor.test(data$SalePrice,data$TotalBsmtSF, method = "pearson" ,conf.level=0.92)
+t2<-cor.test(data$SalePrice,data$LotArea, method = "pearson" ,conf.level=0.92)
+t3<-cor.test(data$TotalBsmtSF,data$LotArea, method = "pearson" ,conf.level=0.92)
+t1
+t2
+t3
+
+```
+for all three test has p value less than 0.05 which indicate that all three varible has dependence between each other 
+
+## Linear Algebra and Correlation.
+
+ Invert your 3 x 3 correlation matrix from above. (This is known as the
+precision matrix and contains variance inflation factors on the diagonal.) Multiply the correlation matrix
+by the precision matrix, and then multiply the precision matrix by the correlation matrix. 
+decomposition on the matrix. 
+
+```{R}
+precmatrix <- solve(cor)
+precmatrix
+cor %*% precmatrix
+precmatrix %*% cor
+```
+## decomposition on the matrix. 
+```{r}
+suppressWarnings(suppressMessages(library(FactoMineR)))
+PCA(data[, which(names(data) %in% c("TotalBsmtSF", "SalePrice","LotArea"))], scale.unit=TRUE, ncp=5, graph=T)
+```
+
+## Calculus-Based Probability & Statistics. 
+Many times, it makes sense to fit a closed form distribution to
+data. For the first variable that you selected which is skewed to the right, shift it so that the minimum
+value is above zero as necessary. Then load the MASS package and run fitdistr to fit an exponential
+probability density function. (See https://stat.ethz.ch/R-manual/R-
+devel/library/MASS/html/fitdistr.html ). Find the optimal value of ¦Ë for this distribution, and then take
+1000 samples from this exponential distribution using this value (e.g., rexp(1000, ¦Ë)). Plot a histogram
+and compare it with a histogram of your original variable. Using the exponential pdf, find the 5 th and
+95 th percentiles using the cumulative distribution function (CDF). Also generate a 95% confidence
+interval from the empirical data, assuming normality. Finally, provide the empirical 5 th percentile and
+95 th percentile of the data. Discuss.
+
+```{r}
+suppressWarnings(suppressMessages(library(MASS)))
+suppressWarnings(suppressMessages(library(Rmisc)))
+TotalBsmtSF <- data$TotalBsmtSF + 0.0000001
+model <- fitdistr(TotalBsmtSF, "exponential")
+(lambda <- model$estimate)
+sample <- rexp(1000, lambda)
+hist(sample)
+hist(TotalBsmtSF)
+
+cdf_5 <- log(1 - .05)/-lambda
+cdf_95 <- log(1 - .95)/-lambda
+obs_5 <- quantile(data$TotalBsmtSF, 0.05)
+obs_95 <- quantile(data$TotalBsmtSF, 0.95)
+CI(data$TotalBsmtSF, 0.95)
+```
+The original plot is very close to exponential
+
+## Modeling
+Build some type of regression model and submit your model to the competition board. Provide your complete model summary and results with analysis. Report your Kaggle.com user name and score.
+```{r}
+suppressWarnings(suppressMessages(library(caret)))
+suppressWarnings(suppressMessages(library(randomForest)))
+numeric_var <- names(data)[which(sapply(data, is.numeric))]
+house.train <- data[numeric_var]
+house.train[is.na(house.train)] <- 0
+
+# create the test dataset, limited to numeric variables
+numeric_var <- names(test)[which(sapply(test, is.numeric))]
+house.test <- test[numeric_var]
+house.test[is.na(house.test)] <- 0
+
+model <-train(SalePrice ~.,
+              data=house.train,
+              method="rf",
+              trControl=trainControl(method="cv",number=5),
+              prox=TRUE, importance = TRUE,
+              allowParallel=TRUE)
+
+# show the model summary          
+model
+```
+
+```{r}
+dotPlot(varImp(model), main = "Random Forest Model")
+
+# predict              
+pred_rf <- predict(model, house.train)
+
+submission <- as.data.frame(cbind(data$Id, pred_rf))
+colnames(submission) <- c("Id", "SalePrice")
+
+dim(submission) 
+
+```
+
+
+
+
